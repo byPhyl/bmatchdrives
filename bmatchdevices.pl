@@ -1,10 +1,10 @@
 #!/usr/bin/perl -w
 #
 # This program was written by Philippe CHAUVAT (philippe@chauvat.eu)
-# You can use this program
+# You can use this program accordingly to the LICENCE file in this project.
 use File::Basename ;
 #
-# Fonctions necessaires
+# Required system tools
 my @features = ("lsscsi","mtx","mt --version") ;
 my @message = () ;
 foreach my $f (@features) {
@@ -12,28 +12,28 @@ foreach my $f (@features) {
     close(CHECK) ;
 }
 if (defined($message[0])) {
-    print "La(es) fonction(s) suivante(s) manque(nt):\n" ;
+    print "The following feature(s) is (are) missing:\n" ;
     foreach my $f (@message) {
 	print "\t$f\n" ;
     }
-    print "Elles sont nécessaires au bon fonctionnement de ce programme.\n" ;
+    print "This (these) are required for the script to run.\n" ;
     exit(-1) ;
 }
 #
-# devices
+# Found devices
 my %devices = () ;
 my @tab ;
+# Change debug value to something positive to enable more output.
+# TODO: improve this to make it an arg on the command line.
 my $debug = 0 ;
-#my @addresses ;
 #
-# Identification des devices
-print "Identification des robots....\n" ;
+# Devices identification
+print "Autoloader(s) Identification...\n" ;
 open(DEVICES, "lsscsi -g|")    || die "can't fork lsscsi: $!";
 while (<DEVICES>) {
-    my $l = $_ ;
     print "$l\n" if $debug ;
     my ($addr, $media, $brand, $name, $firmware, $device, $generic) ;
-    $l =~ s/^([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+(.*)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)/$addr=$1,$media=$2,$brand=$3,$name=$4,$firmware=$5,$device=$6,$generic=$7/eo ;
+    s/^([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+(.*)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)/$addr=$1,$media=$2,$brand=$3,$name=$4,$firmware=$5,$device=$6,$generic=$7/eo ;
     print join("\t",$addr,$media,$brand,$name,$firmware,$device,$generic,"\n") if $debug ;
     my $prefix = "" ;
     my $thedevice = "" ;
@@ -41,16 +41,22 @@ while (<DEVICES>) {
 	$thedevice = $generic ;
     }
     if ($media =~ /tape/) {
+    	# n form is for non rewind devices.
 	$prefix = "n" ;
 	$thedevice = $device ;
     }
     if ($thedevice ne "") {
+    	# Make $name variable without any space (leading or contained)
 	$name =~ s/\s+$// ;
 	$name =~ s/\s+/_/ ;
+	# Change SCSI address like [a:b:c:d] as abcd
 	$addr =~ s/\[//g ;
 	$addr =~ s/\]//g ;
 	$addr =~ s/://g ;
+	# /dev/sg4 will become sg4
+	# /dev/st1 will become nst1
 	$thedevice = $prefix . basename($thedevice) ;
+	# Building the hash
 	$devices{$addr}{'type'} = $media ;
 	$devices{$addr}{'brand'} = $brand ;
 	$devices{$addr}{'name'} = $name ;
@@ -60,8 +66,8 @@ while (<DEVICES>) {
 }
 close(DEVICES) || die "can't close lsscsi: $!";
 #
-# Recherche des devices équivalents
-my @devdirs = ("/dev", "/dev/tape/by-id") ;
+# Looking for equivalent devices
+my @devdirs = ("/dev", "/dev/tape/by-id", "/dev/tape/by-path") ;
 my %hash ;
 foreach $d (@devdirs) {
     if ( -x $d ) {
@@ -70,28 +76,14 @@ foreach $d (@devdirs) {
             if (-l "$d/$ldir") {
 		$linked = basename(readlink "$d/$ldir") ;
 		$hash{$linked} = "$d/$ldir" ;
-		print $linked . " pointe sur\t" . $hash{$linked} . "\n" if ($debug) ;
-	    }
-        }
-        closedir $dh;
-    }
-}
-@devdirs = ("/dev", "/dev/tape/by-path") ;
-foreach $d (@devdirs) {
-    if ( -x $d ) {
-	opendir(my $dh, $d) || die "Can't open $d: $!";
-        while (my $ldir = readdir($dh)) {
-            if (-l "$d/$ldir") {
-		$linked = basename(readlink "$d/$ldir") ;
-		$hash{$linked} = "$d/$ldir" ;
-		print $linked . " pointe sur\t" . $hash{$linked} . "\n" if ($debug) ;
+		print $linked . " refers to\t" . $hash{$linked} . "\n" if ($debug) ;
 	    }
         }
         closedir $dh;
     }
 }
 #
-# Rapprochement
+# Matching part
 my @robots = () ;
 my @drives = (); 
 my $line ;
@@ -106,7 +98,7 @@ foreach my $key (keys(%devices)) {
 		@tab = split /:/, $_ ;
 		@tab = split/\s+/, $tab[1] ;
 		$devices{$key}{'drives'} = $tab[0] ;
-		print $tab[0] . " drive" . ($tab[0] == 1 ? "":"s") . " sur le robot" . $hash{$devices{$key}{'addr'}} . "\n" ;
+		print $tab[0] . " drive" . ($tab[0] == 1 ? "":"s") . " belongs to " . $hash{$devices{$key}{'addr'}} . "\n" ;
 		for (my $j = 0; $j < $tab[0]; $j++) {
 		    $line = <MTX> ;
 		    if ($line =~ /Full/) {
@@ -118,7 +110,7 @@ foreach my $key (keys(%devices)) {
 			system($command) ;
 		    }
 		}
-		print "Recherche d'une bande présente dans le robot...\n" if ($debug) ;
+		print "Looking for a tape...\n" if ($debug) ;
 		$line = <MTX> ;
 		$slot = 0 ;
 		do {
@@ -126,7 +118,7 @@ foreach my $key (keys(%devices)) {
 		    # Storage Element 1:Full :VolumeTag=E01100L4
 		    if ($line =~ /.*Full.*/) {
 			$line =~ s/^\s+Storage\s+Element\s+([0-9]+).*/$slot=$1/eo ;
-			print $slot . " trouvé\n" if ($debug) ;
+			print $slot . " found\n" if ($debug) ;
 		    }
 		    $line = <MTX> ;
 		} until ($slot!= 0) ;
@@ -138,19 +130,19 @@ foreach my $key (keys(%devices)) {
 	}
 	elsif ($devices{$key}{'type'} =~ /tape/) {
 	    push @drives,$key ;
-	    print "$key est un lecteur\n" if ($debug) ;
+	    print "$key is a tape drive\n" if ($debug) ;
 	}
 	else {
-	    print "$key inconnu pour " . $devices{$key}{'type'} . "\n" if ($debug) ;
+	    print "$key inknonwn for " . $devices{$key}{'type'} . "\n" if ($debug) ;
 	}
     }
 }
-# Ici:
-# Les robots sont identifiés et appariés
-# Les drives sont identifiés non appariés
-# Les drives sont libres de toute bande
+# At this point:
+# - autoloaders are identified and matched with their usuful name
+# - devices are identified but matching is not done
+# - there are no tape in any drive
 foreach my $r (@robots) {
-    print "Robot $r\n" if ($debug) ;
+    print "Autoloader $r\n" if ($debug) ;
     for (my $i=0; $i< $devices{$r}{'drives'}; $i++) {
 	print "Drive $i\n" if ($debug) ;
 	my $command = join(' ',"mtx -f",$hash{$devices{$r}{'addr'}},"load",$devices{$r}{'fullslot'},$i) ;
@@ -163,7 +155,7 @@ foreach my $r (@robots) {
 	    while (<DRIVE>) {
 		if (/ONLINE/) {
 		    $devices{$r}{$i} = $d ;
-		    print "Drive $d trouvé comme drive $i du robot " . $hash{$devices{$r}{'addr'}} . "\n" if ($debug) ;
+		    print "Drive $d foudn as drive $i for autoloader " . $hash{$devices{$r}{'addr'}} . "\n" if ($debug) ;
 		    last ;
 		}
 	    }
@@ -175,9 +167,10 @@ foreach my $r (@robots) {
 	system($command) ;
     }
     #
-    # Construction des fichiers de configuration Bacula
+    # Building Bacula configuration files
     my $robotconf = $devices{$r}{'name'} . "_tic.conf" ;
-    open(ROBOT,">" . $robotconf) or die "Impossible de créer le fichier $robotconf: $!\n" ;
+    open(ROBOT,">" . $robotconf) or die "Unable to create Bacula autoloader configuration file $robotconf: $!\n" ;
+    print "Creating $robotconf file\n" ;
     print ROBOT "Autochanger {\n" ;
     print ROBOT "\tName = " . $devices{$r}{'name'} . "\n" ;
     for (my $i=0; $i<$devices{$r}{'drives'};$i++) {
@@ -185,7 +178,8 @@ foreach my $r (@robots) {
 	my $devicename = $devices{$deviceaddress}{'name'}  . "_" . $i ;
 	print ROBOT "\tDevice = " . $devicename . "\n" ;
 	my $driveconf = join('_',$devicename,"tic.conf") ;
-	open(DRIVE,"> " . $driveconf) or die "Impossible de créer le fichier $driveconf; $!\n" ;
+	open(DRIVE,"> " . $driveconf) or die "Unable to create Bacula device configuration file $driveconf; $!\n" ;
+	print "Creation $driveconf file\n" ;
 	print DRIVE "Device {\n" ;
 	print DRIVE "\tName = $devicename\n" ;
 	print DRIVE "\tDrive Index = $i\n" ;
