@@ -19,3 +19,6 @@ The script:
 2) determines the soft links to the drives and library, number of drives, and so on
 3) find the match between drives and libray (which drive in which library at what place)
 4) build Bacula default configuration files for all drives and libraries
+
+The language
+The script is written in Perl. Probably Perl's kings wil find it "to be improved". I like to have some readable script, but please, feel free to propose improvements :)
