@@ -31,7 +31,7 @@ my $debug = 0 ;
 print "Autoloader(s) Identification...\n" ;
 open(DEVICES, "lsscsi -g|")    || die "can't fork lsscsi: $!";
 while (<DEVICES>) {
-    print "$l\n" if $debug ;
+    print "$_\n" if $debug ;
     my ($addr, $media, $brand, $name, $firmware, $device, $generic) ;
     s/^([^\s]+)\s+([^\s]+)\s+([^\s]+)\s+(.*)\s+([^\s]+)\s+([^\s]+)\s+([^\s]+)/$addr=$1,$media=$2,$brand=$3,$name=$4,$firmware=$5,$device=$6,$generic=$7/eo ;
     print join("\t",$addr,$media,$brand,$name,$firmware,$device,$generic,"\n") if $debug ;
