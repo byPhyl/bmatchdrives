@@ -75,7 +75,7 @@ foreach $d (@devdirs) {
         while (my $ldir = readdir($dh)) {
             if (-l "$d/$ldir") {
 		$linked = basename(readlink "$d/$ldir") ;
-		$hash{$linked} = "$d/$ldir" ;
+		$hash{$linked} = "$d/$ldir" if !defined($hash{$linked}) ;
 		print $linked . " refers to\t" . $hash{$linked} . "\n" if ($debug) ;
 	    }
         }
@@ -149,15 +149,25 @@ foreach my $r (@robots) {
 	print "load command: $command\n" if ($debug) ;
 	system($command) ;
 	foreach my $d (@drives) {
+	    my $mydriveok = 0 ;
 	    $command = join(' ',"mt -f",$hash{$devices{$d}{'addr'}},"status|") ;
 	    print "mt status command: $command\n" if ($debug) ;
 	    open(DRIVE,$command)    || die "can't fork mt: $!";
 	    while (<DRIVE>) {
+	        # mt status worked and is able to read something
+	        mydriveok = 1 ;
 		if (/ONLINE/) {
 		    $devices{$r}{$i} = $d ;
 		    print "Drive $d foudn as drive $i for autoloader " . $hash{$devices{$r}{'addr'}} . "\n" if ($debug) ;
 		    last ;
 		}
+	    }
+	    #
+	    # This is to prevent a failure of mt command when no tape is mounted
+	    if ($mydriveok and !defined($devices{$r}{$i})) {
+		    $devices{$r}{$i} = $d ;
+		    print "Drive $d foudn as drive $i for autoloader " . $hash{$devices{$r}{'addr'}} . "\n" if ($debug) ;
+		    last ;
 	    }
 	    close(DRIVE) ;
 	    last if (defined($devices{$r}{$i})) ;
