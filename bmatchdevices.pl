@@ -4,6 +4,9 @@
 # You can use this program accordingly to the LICENCE file in this project.
 use File::Basename ;
 #
+# The following value is a suffix to prevent file overwrite as the script does not verify anything in this matter.
+$SEURITYFILEXT="pct" ;
+#
 # Required system tools
 my @features = ("lsscsi","mtx","mt --version") ;
 my @message = () ;
@@ -12,11 +15,11 @@ foreach my $f (@features) {
     close(CHECK) ;
 }
 if (defined($message[0])) {
-    print "The following feature(s) is (are) missing:\n" ;
+    print "The following feature" . $#message > 1?'s are':' is' . " missing\n") ;
     foreach my $f (@message) {
 	print "\t$f\n" ;
     }
-    print "This (these) are required for the script to run.\n" ;
+    print "and required for the script to run.\n") ;
     exit(-1) ;
 }
 #
@@ -28,7 +31,7 @@ my @tab ;
 my $debug = 0 ;
 #
 # Devices identification
-print "Autoloader(s) Identification...\n" ;
+print "Autoloader(s) identification process...\n" ;
 open(DEVICES, "lsscsi -g|")    || die "can't fork lsscsi: $!";
 while (<DEVICES>) {
     print "$_\n" if $debug ;
@@ -41,7 +44,7 @@ while (<DEVICES>) {
 	$thedevice = $generic ;
     }
     if ($media =~ /tape/) {
-    	# n form is for non rewind devices.
+    	# n form is for no-rewind devices.
 	$prefix = "n" ;
 	$thedevice = $device ;
     }
@@ -61,12 +64,13 @@ while (<DEVICES>) {
 	$devices{$addr}{'brand'} = $brand ;
 	$devices{$addr}{'name'} = $name ;
 	$devices{$addr}{'addr'} = $thedevice ;
-	print "Key: " . $addr . "\tName: " . $name . "\tAdresse: " . $thedevice . "\tType: " . $media . "\n" if ($debug) ;
+	print "Key: " . $addr . "\tName: " . $name . "\tAddress: " . $thedevice . "\tType: " . $media . "\n" if ($debug) ;
     }
 }
 close(DEVICES) || die "can't close lsscsi: $!";
 #
 # Looking for equivalent devices
+# TODO: Make sure these are sufficient.
 my @devdirs = ("/dev", "/dev/tape/by-id", "/dev/tape/by-path") ;
 my %hash ;
 foreach $d (@devdirs) {
@@ -178,32 +182,32 @@ foreach my $r (@robots) {
     }
     #
     # Building Bacula configuration files
-    my $robotconf = $devices{$r}{'name'} . "_tic.conf" ;
-    open(ROBOT,">" . $robotconf) or die "Unable to create Bacula autoloader configuration file $robotconf: $!\n" ;
+    my $robotconf = join('_',$devices{$r}{'name'},$SEURITYFILEXT . ".conf") ;
+    open(ROBOT,">" . $robotconf) or die "$robotconf: Unable to create Bacula autoloader configuration file: $!\n" ;
     print "Creating $robotconf file\n" ;
     print ROBOT "Autochanger {\n" ;
     print ROBOT "\tName = " . $devices{$r}{'name'} . "\n" ;
     for (my $i=0; $i<$devices{$r}{'drives'};$i++) {
 	my $deviceaddress = $devices{$r}{$i} ;
-	my $devicename = $devices{$deviceaddress}{'name'}  . "_" . $i ;
+	my $devicename = join('_',$devices{$deviceaddress}{'name'},$i) ;
 	print ROBOT "\tDevice = " . $devicename . "\n" ;
-	my $driveconf = join('_',$devicename,"tic.conf") ;
-	open(DRIVE,"> " . $driveconf) or die "Unable to create Bacula device configuration file $driveconf; $!\n" ;
+	my $driveconf = join('_',$devicename,$SECURITYFILEEXT . ".conf") ;
+	open(DRIVE,"> " . $driveconf) or die "$driveconf: Unable to create Bacula device configuration file: $!\n" ;
 	print "Creation $driveconf file\n" ;
 	print DRIVE "Device {\n" ;
-	print DRIVE "\tName = $devicename\n" ;
-	print DRIVE "\tDrive Index = $i\n" ;
-	print DRIVE "\tMedia Type = " . $devices{$r}{'name'} ."\n" ;
-	print DRIVE "\tArchive Device = " . $hash{$devices{$deviceaddress}{'addr'}} ."\n" ;
-	print DRIVE "\tAutomaticMount = yes\n" ;
-	print DRIVE "\tAlwaysOpen = yes\n" ;
-	print DRIVE "\tOffline On Unmount = no\n" ;
-	print DRIVE "\tAlert Command = \"sh -c 'smartctl -H -l error %c'\"\n";
+	print DRIVE "       Name = $devicename\n" ;
+	print DRIVE "       Drive Index = $i\n" ;
+	print DRIVE "       Media Type = " . $devices{$r}{'name'} ."\n" ;
+	print DRIVE "       Archive Device = " . $hash{$devices{$deviceaddress}{'addr'}} ."\n" ;
+	print DRIVE "       AutomaticMount = yes\n" ;
+	print DRIVE "       AlwaysOpen = yes\n" ;
+	print DRIVE "       Offline On Unmount = no\n" ;
+	print DRIVE "       Alert Command = \"sh -c 'smartctl -H -l error %c'\"\n";
 	print DRIVE "}\n" ;
 	close(DRIVE) ;
     }
-    print ROBOT "\tChanger Command = \"/opt/bacula/scripts/mtx-changer %c %o %S %a %d\"\n" ;
-    print ROBOT "\tChanger Device = " . $hash{$devices{$r}{'addr'}} . "\n" ;
+    print ROBOT "       Changer Command = \"/opt/bacula/scripts/mtx-changer %c %o %S %a %d\"\n" ;
+    print ROBOT "       Changer Device = " . $hash{$devices{$r}{'addr'}} . "\n" ;
     print ROBOT "}\n" ;
     close(ROBOT) ;
 }
