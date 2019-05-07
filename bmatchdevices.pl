@@ -5,7 +5,7 @@
 use File::Basename ;
 #
 # The following value is a suffix to prevent file overwrite as the script does not verify anything in this matter.
-$SEURITYFILEXT="pct" ;
+$SECURITYFILEXT="pct" ;
 #
 # Required system tools
 my @features = ("lsscsi","mtx","mt --version") ;
@@ -15,11 +15,11 @@ foreach my $f (@features) {
     close(CHECK) ;
 }
 if (defined($message[0])) {
-    print "The following feature" . $#message > 1?'s are':' is' . " missing\n") ;
+    print "The following feature" . $#message > 1?'s are':' is' . " missing\n" ;
     foreach my $f (@message) {
 	print "\t$f\n" ;
     }
-    print "and required for the script to run.\n") ;
+    print "and required for the script to run.\n" ;
     exit(-1) ;
 }
 #
@@ -89,12 +89,12 @@ foreach $d (@devdirs) {
 #
 # Matching part
 my @robots = () ;
-my @drives = (); 
+my @keydrives = (); 
 my $line ;
 foreach my $key (keys(%devices)) {
     print "Key: $key\n" if $debug ;
     if (defined($hash{$devices{$key}{'addr'}})) {
-	print $devices{$key}{'addr'} . "\t" . $hash{$devices{$key}{'addr'}} . "\n" if $debug ;
+	print "Addr: " . $devices{$key}{'addr'} . "\tHash: " . $hash{$devices{$key}{'addr'}} . "\n" if $debug ;
 	if ($devices{$key}{'type'} =~ /mediumx/) {
 	    push @robots,$key ;
 	    open(MTX, "mtx -f " . $hash{$devices{$key}{'addr'}} . " status|")    || die "can't fork mtx: $!";
@@ -133,7 +133,7 @@ foreach my $key (keys(%devices)) {
 
 	}
 	elsif ($devices{$key}{'type'} =~ /tape/) {
-	    push @drives,$key ;
+	    push @keydrives,$key ;
 	    print "$key is a tape drive\n" if ($debug) ;
 	}
 	else {
@@ -146,32 +146,23 @@ foreach my $key (keys(%devices)) {
 # - devices are identified but matching is not done
 # - there are no tape in any drive
 foreach my $r (@robots) {
-    print "Autoloader $r\n" if ($debug) ;
+    print "Autoloader $r has " . $devices{$r}{'drives'} . " drives\n" if ($debug) ;
     for (my $i=0; $i< $devices{$r}{'drives'}; $i++) {
 	print "Drive $i\n" if ($debug) ;
 	my $command = join(' ',"mtx -f",$hash{$devices{$r}{'addr'}},"load",$devices{$r}{'fullslot'},$i) ;
 	print "load command: $command\n" if ($debug) ;
 	system($command) ;
-	foreach my $d (@drives) {
-	    my $mydriveok = 0 ;
-	    $command = join(' ',"mt -f",$hash{$devices{$d}{'addr'}},"status|") ;
+	foreach my $thekey (@keydrives) {
+	    $command = join(' ',"mt -f",$hash{$devices{$thekey}{'addr'}},"status|") ;
 	    print "mt status command: $command\n" if ($debug) ;
 	    open(DRIVE,$command)    || die "can't fork mt: $!";
 	    while (<DRIVE>) {
 	        # mt status worked and is able to read something
-	        mydriveok = 1 ;
 		if (/ONLINE/) {
-		    $devices{$r}{$i} = $d ;
-		    print "Drive $d foudn as drive $i for autoloader " . $hash{$devices{$r}{'addr'}} . "\n" if ($debug) ;
+		    $devices{$r}{$i} = $thekey ;
+		    print "Drive $thekey found as drive $i for autoloader " . $hash{$devices{$r}{'addr'}} . "\n" if ($debug) ;
 		    last ;
 		}
-	    }
-	    #
-	    # This is to prevent a failure of mt command when no tape is mounted
-	    if ($mydriveok and !defined($devices{$r}{$i})) {
-		    $devices{$r}{$i} = $d ;
-		    print "Drive $d foudn as drive $i for autoloader " . $hash{$devices{$r}{'addr'}} . "\n" if ($debug) ;
-		    last ;
 	    }
 	    close(DRIVE) ;
 	    last if (defined($devices{$r}{$i})) ;
@@ -182,7 +173,7 @@ foreach my $r (@robots) {
     }
     #
     # Building Bacula configuration files
-    my $robotconf = join('_',$devices{$r}{'name'},$SEURITYFILEXT . ".conf") ;
+    my $robotconf = join('_',$devices{$r}{'name'},$SECURITYFILEXT . ".conf") ;
     open(ROBOT,">" . $robotconf) or die "$robotconf: Unable to create Bacula autoloader configuration file: $!\n" ;
     print "Creating $robotconf file\n" ;
     print ROBOT "Autochanger {\n" ;
@@ -191,7 +182,7 @@ foreach my $r (@robots) {
 	my $deviceaddress = $devices{$r}{$i} ;
 	my $devicename = join('_',$devices{$deviceaddress}{'name'},$i) ;
 	print ROBOT "\tDevice = " . $devicename . "\n" ;
-	my $driveconf = join('_',$devicename,$SECURITYFILEEXT . ".conf") ;
+	my $driveconf = join('_',$devicename,$SECURITYFILEXT . ".conf") ;
 	open(DRIVE,"> " . $driveconf) or die "$driveconf: Unable to create Bacula device configuration file: $!\n" ;
 	print "Creation $driveconf file\n" ;
 	print DRIVE "Device {\n" ;
